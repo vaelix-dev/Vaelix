@@ -3,7 +3,6 @@
 <head>
     <meta charset="UTF-8">
     <title>Vaelix Core</title>
-    <!-- Gradio Lite Script -->
     <script type="module" src="https://cdn.jsdelivr.net/npm/@gradio/lite"></script>
     <style>
         body { margin: 0; padding: 0; background-color: #0b0f19; color: white; }
@@ -11,27 +10,29 @@
 </head>
 <body>
 
-<!-- Gradio Lite App -->
 <gradio-lite>
 import gradio as gr
 from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 import torch
 
-# Load model once
-model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, 
-    torch_dtype=torch.float16, 
-    device_map="cpu" # Force CPU for GitHub Pages compatibility
-)
-pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+# Switched to Phi-3-mini for better browser performance
+model_name = "microsoft/Phi-3-mini-4k-instruct"
+
+try:
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(
+        model_name, 
+        torch_dtype="auto", 
+        device_map="cpu"
+    )
+    pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+except Exception as e:
+    print(f"Error loading model: {e}")
 
 def chat(message, history):
     if not message:
         return ""
     
-    # ChatML format for TinyLlama
     messages = [{"role": "user", "content": message}]
     text = pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
     inputs = pipe.tokenizer(text, return_tensors="pt")
@@ -42,7 +43,7 @@ def chat(message, history):
     return output_text
 
 with gr.Blocks() as demo:
-    gr.Markdown("# 🦙 Vaelix Core")
+    gr.Markdown("# 🦙 Vaelix Core (Phi-3)")
     chatbot = gr.Chatbot(label="Vaelix Brain")
     with gr.Row():
         msg = gr.Textbox(placeholder="Ask me anything...", scale=4)
