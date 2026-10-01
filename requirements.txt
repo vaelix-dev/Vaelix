@@ -1,0 +1,7 @@
+text
+fastapi
+uvicorn [standard]
+gradio
+transformers
+torch
+accelerate
