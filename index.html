@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Vaelix Core</title>
+    <!-- Gradio Lite Script -->
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@gradio/lite"></script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #0b0f19; color: white; }
+    </style>
+</head>
+<body>
+
+<!-- Gradio Lite App -->
+<gradio-lite>
+import gradio as gr
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
+import torch
+
+# Load model once
+model_name = "TinyLlama/TinyLlama-1.1B-Chat-v1.0"
+tokenizer = AutoTokenizer.from_pretrained(model_name)
+model = AutoModelForCausalLM.from_pretrained(
+    model_name, 
+    torch_dtype=torch.float16, 
+    device_map="cpu" # Force CPU for GitHub Pages compatibility
+)
+pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
+
+def chat(message, history):
+    if not message:
+        return ""
+    
+    # ChatML format for TinyLlama
+    messages = [{"role": "user", "content": message}]
+    text = pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+    inputs = pipe.tokenizer(text, return_tensors="pt")
+    
+    outputs = pipe.model.generate(**inputs, max_new_tokens=200, temperature=0.7, do_sample=True)
+    output_text = pipe.tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
+    
+    return output_text
+
+with gr.Blocks() as demo:
+    gr.Markdown("# 🦙 Vaelix Core")
+    chatbot = gr.Chatbot(label="Vaelix Brain")
+    with gr.Row():
+        msg = gr.Textbox(placeholder="Ask me anything...", scale=4)
+        btn = gr.Button("Send", variant="primary", scale=1)
+    
+    msg.submit(chat_fn=lambda m, h: chat(m, h), inputs=[msg, chatbot], outputs=[chatbot])
+    btn.click(chat_fn=lambda m, h: chat(m, h), inputs=[msg, chatbot], outputs=[chatbot])
+
+demo.launch()
+</gradio-lite>
+
+</body>
+</html>
