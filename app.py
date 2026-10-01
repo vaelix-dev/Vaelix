@@ -1,40 +1,65 @@
-import gradio as gr
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-import torch
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
+import uvicorn
 
-# Load model on startup
-print("Loading Model...")
-model_name = "microsoft/Phi-3-mini-4k-instruct"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(
-    model_name, 
-    torch_dtype="auto", 
-    device_map="cpu" # Use CPU for free tier
-)
-pipe = pipeline("text-generation", model=model, tokenizer=tokenizer)
-print("Model Loaded.")
+app = FastAPI()
 
-def chat(message, history):
-    if not message:
-        return ""
-    
-    messages = [{"role": "user", "content": message}]
-    text = pipe.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
-    inputs = pipe.tokenizer(text, return_tensors="pt")
-    
-    outputs = pipe.model.generate(**inputs, max_new_tokens=200, temperature=0.7, do_sample=True)
-    output_text = pipe.tokenizer.decode(outputs[0][inputs['input_ids'].shape[1]:], skip_special_tokens=True)
-    
-    return output_text
+# Serve the frontend
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Vaelix Core</title>
+        <style>
+            body { background: #0b0f19; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+            .container { width: 80%; max-width: 600px; }
+            #chat { height: 400px; border: 1px solid #333; overflow-y: scroll; padding: 10px; margin-bottom: 10px; background: #1a1f2e; }
+            input { width: 70%; padding: 10px; }
+            button { padding: 10px 20px; cursor: pointer; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h2 style="text-align:center;">Vaelix Core</h2>
+            <div id="chat"></div>
+            <input type="text" id="userInput" placeholder="Type here...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+        <script>
+            async function sendMessage() {
+                const input = document.getElementById('userInput');
+                const chat = document.getElementById('chat');
+                if (!input.value) return;
+                
+                // Add user message
+                chat.innerHTML += `<div><strong>You:</strong> ${input.value}</div>`;
+                input.value = '';
+                
+                // Send to server
+                const response = await fetch('/chat', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({message: input.value})
+                });
+                const data = await response.json();
+                
+                // Add AI response
+                chat.innerHTML += `<div><strong>Vaelix:</strong> ${data.response}</div>`;
+                chat.scrollTop = chat.scrollHeight;
+            }
+        </script>
+    </body>
+    </html>
+    """
 
-with gr.Blocks() as demo:
-    gr.Markdown("# 🚀 Vaelix Core (Server)")
-    chatbot = gr.Chatbot(label="Vaelix Brain")
-    with gr.Row():
-        msg = gr.Textbox(placeholder="Ask me anything...", scale=4)
-        btn = gr.Button("Send", variant="primary", scale=1)
-    
-    msg.submit(chat_fn=lambda m, h: chat(m, h), inputs=[msg, chatbot], outputs=[chatbot])
-    btn.click(chat_fn=lambda m, h: chat(m, h), inputs=[msg, chatbot], outputs=[chatbot])
+@app.post("/chat")
+async def chat(request: dict):
+    message = request.get("message", "")
+    # Simple placeholder response for now - we will add AI logic next
+    return {"response": f"You said: {message}"}
 
-demo.launch(server_name="0.0.0.0", server_port=8000)
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=8000)
